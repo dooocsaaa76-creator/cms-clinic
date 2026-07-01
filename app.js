@@ -587,12 +587,75 @@ function AddSessionModal({ onClose, onAdd }) {
   );
 }
 
+/* ============================== 달력 화면 ============================== */
+
+function buildCalendarWeeks(year, month) {
+  const startWeekday = new Date(year, month - 1, 1).getDay();
+  const total = daysInMonth(year, month);
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let d = 1; d <= total; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+function CalendarGrid({ year, month, byDateMap, onSelectDate }) {
+  const weeks = useMemo(() => buildCalendarWeeks(year, month), [year, month]);
+  const todayStr = useMemo(() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`;
+  }, []);
+
+  return (
+    <div className="calendar-grid">
+      <div className="calendar-weekday-row">
+        {WEEKDAY_NAMES.map((name, d) => (
+          <div key={d} className={`wd day-${d}`}>{name}</div>
+        ))}
+      </div>
+      {weeks.map((week, wi) => (
+        <div className="calendar-week" key={wi}>
+          {week.map((day, di) => {
+            if (day === null) return <div className="calendar-cell empty" key={di}></div>;
+            const dateStr = `${year}-${pad2(month)}-${pad2(day)}`;
+            const daySessions = byDateMap[dateStr] || [];
+            const hasSessions = daySessions.length > 0;
+            const studentCount = daySessions.reduce((sum, s) => sum + (s.students ? s.students.length : 0), 0);
+            const isToday = dateStr === todayStr;
+            return (
+              <div
+                key={di}
+                className={`calendar-cell day-${di} ${hasSessions ? "has-sessions" : ""} ${isToday ? "is-today" : ""}`}
+                onClick={() => hasSessions && onSelectDate(dateStr)}
+              >
+                <span className="cell-daynum">{day}</span>
+                {hasSessions && (
+                  <div className="cell-sessions">
+                    {daySessions.slice(0, 3).map((s) => (
+                      <div className="cell-session-chip" key={s.id}>{s.grade || s.time || "반"}</div>
+                    ))}
+                    {daySessions.length > 3 && <div className="cell-more">+{daySessions.length - 3}개 더</div>}
+                    {studentCount > 0 && <div className="cell-count">{studentCount}명</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ============================== 클리닉 방(월) 화면 ============================== */
 
 function Room({ id, onBack }) {
   const [monthDoc, setMonthDoc] = useState(null);
   const [sessions, setSessions] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(null);
   const recentEditRef = useRef({});
 
   useEffect(() => {
@@ -643,6 +706,7 @@ function Room({ id, onBack }) {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     setShowAdd(false);
+    setSelectedDate(date);
   }
 
   const byDate = useMemo(() => {
@@ -654,12 +718,20 @@ function Room({ id, onBack }) {
     return Object.keys(map).sort().map((date) => ({ date, sessions: map[date] }));
   }, [sessions]);
 
+  const byDateMap = useMemo(() => {
+    const map = {};
+    byDate.forEach(({ date, sessions: s }) => { map[date] = s; });
+    return map;
+  }, [byDate]);
+
   if (monthDoc === null && sessions === null) {
     return <div className="loading-line">불러오는 중…</div>;
   }
   if (monthDoc === null) {
     return <div className="empty-state"><h3>이 클리닉 방을 찾을 수 없어요</h3><button className="btn" onClick={onBack}>목록으로</button></div>;
   }
+
+  const selectedSessions = selectedDate ? (byDateMap[selectedDate] || []) : [];
 
   return (
     <div>
@@ -681,19 +753,36 @@ function Room({ id, onBack }) {
         </div>
       )}
 
-      {byDate.map(({ date, sessions: daySessions }) => {
-        const dow = daySessions[0].dayOfWeek;
-        return (
-          <div className="date-block" key={date}>
+      {byDate.length > 0 && selectedDate === null && (
+        <CalendarGrid
+          year={monthDoc.year}
+          month={monthDoc.month}
+          byDateMap={byDateMap}
+          onSelectDate={(date) => setSelectedDate(date)}
+        />
+      )}
+
+      {selectedDate !== null && (
+        <div>
+          <button className="back-link" onClick={() => setSelectedDate(null)}>← 달력으로</button>
+          <div className="date-block">
             <div className="date-block-head">
-              <span className={`date-tab day-${dow}`}>{formatDateLabel(date)}</span>
+              <span className={`date-tab day-${new Date(selectedDate + "T00:00:00").getDay()}`}>
+                {formatDateLabel(selectedDate)}
+              </span>
             </div>
-            {daySessions.map((s) => (
+            {selectedSessions.length === 0 && (
+              <div className="empty-state">
+                <h3>이 날짜에는 아직 반이 없어요</h3>
+                <p>"클리닉 날짜/반 추가" 버튼으로 이 날짜에 반을 추가해보세요.</p>
+              </div>
+            )}
+            {selectedSessions.map((s) => (
               <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} />
             ))}
           </div>
-        );
-      })}
+        </div>
+      )}
 
       {showAdd && <AddSessionModal onClose={() => setShowAdd(false)} onAdd={handleAddSession} />}
     </div>
