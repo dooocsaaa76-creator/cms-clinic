@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// 로그인 없이 링크만으로 누구나 읽고 쓸 수 있는 규칙입니다.
+// 담임 선생님 / 클리닉 담당 선생님이 로그인 없이 바로 편집할 수 있도록 열어둔 규칙이며,
+// Firebase 프로젝트 정보(설정값)를 아는 사람은 누구나 데이터를 읽고 쓸 수 있다는 점을 참고해주세요.
+// (내부 학원 관계자끼리만 링크를 공유하는 용도로 사용하는 경우에 적합합니다.)
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
