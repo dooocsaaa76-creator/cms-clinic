@@ -391,32 +391,32 @@ function StudentRow({ index, student, onChange, onDelete }) {
   return (
     <tr>
       <td className="rownum">{index + 1}</td>
-      <td className="col-homeroom-cell">
+      <td className="col-homeroom-cell col-narrow">
         <input type="text" value={student.classRoom || ""} placeholder="정규반"
           onChange={(e) => onChange({ ...student, classRoom: e.target.value })} />
       </td>
-      <td className="col-homeroom-cell">
+      <td className="col-homeroom-cell col-narrow">
         <input type="text" value={student.name || ""} placeholder="이름"
           onChange={(e) => onChange({ ...student, name: e.target.value })} />
       </td>
-      <td className="col-homeroom-cell">
+      <td className="col-homeroom-cell col-narrow">
         <input type="text" value={student.homeroom || ""} placeholder="담임"
           onChange={(e) => onChange({ ...student, homeroom: e.target.value })} />
       </td>
-      <td className="col-homeroom-cell">
-        <textarea value={student.task || ""} placeholder="해야할 일" rows={1}
+      <td className="col-homeroom-cell col-wide expandable">
+        <textarea value={student.task || ""} placeholder="해야할 일" rows={1} title={student.task || ""}
           onChange={(e) => onChange({ ...student, task: e.target.value })} />
       </td>
-      <td className="col-homeroom-cell">
-        <textarea value={student.note || ""} placeholder="특이사항" rows={1}
+      <td className="col-homeroom-cell col-medium expandable">
+        <textarea value={student.note || ""} placeholder="특이사항" rows={1} title={student.note || ""}
           onChange={(e) => onChange({ ...student, note: e.target.value })} />
       </td>
       <td className="col-clinic-cell attend-cell">
         <input type="checkbox" checked={!!student.attended}
           onChange={(e) => onChange({ ...student, attended: e.target.checked })} />
       </td>
-      <td className="col-clinic-cell">
-        <textarea value={student.result || ""} placeholder="클리닉 결과" rows={1}
+      <td className="col-clinic-cell col-wide expandable">
+        <textarea value={student.result || ""} placeholder="클리닉 결과" rows={1} title={student.result || ""}
           onChange={(e) => onChange({ ...student, result: e.target.value })} />
       </td>
       <td className="row-del">
@@ -503,6 +503,17 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
 
       <div className="table-scroll">
         <table className="roster">
+          <colgroup>
+            <col style={{ width: "3%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "25%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "6%" }} />
+            <col style={{ width: "25%" }} />
+            <col style={{ width: "4%" }} />
+          </colgroup>
           <thead>
             <tr>
               <th></th>
