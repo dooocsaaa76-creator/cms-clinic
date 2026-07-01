@@ -68,10 +68,10 @@ function Home({ onOpenMonth, onCreate }) {
   useEffect(() => {
     const unsub = db
       .collection("clinicMonths")
-      .orderBy("year", "desc")
-      .orderBy("month", "desc")
       .onSnapshot((snap) => {
-        setMonths(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (b.year - a.year) || (b.month - a.month));
+        setMonths(list);
       });
     return () => unsub();
   }, []);
@@ -150,10 +150,12 @@ function CreateRoom({ onDone, onCancel }) {
 
   useEffect(() => {
     db.collection("clinicMonths")
-      .orderBy("year", "desc")
-      .orderBy("month", "desc")
       .get()
-      .then((snap) => setExistingMonths(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+      .then((snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (b.year - a.year) || (b.month - a.month));
+        setExistingMonths(list);
+      });
   }, []);
 
   function toggleDay(d) {
@@ -588,14 +590,12 @@ function Room({ id, onBack }) {
     });
     const unsub2 = db
       .collection("clinicMonths").doc(id).collection("sessions")
-      .orderBy("date")
-      .orderBy("order")
       .onSnapshot((snap) => {
         setSessions((prev) => {
           const prevMap = {};
           (prev || []).forEach((s) => (prevMap[s.id] = s));
           const now = Date.now();
-          return snap.docs.map((d) => {
+          const list = snap.docs.map((d) => {
             const remoteVal = { id: d.id, ...d.data() };
             const editedAt = recentEditRef.current[d.id];
             if (editedAt && now - editedAt < 1500 && prevMap[d.id]) {
@@ -603,6 +603,8 @@ function Room({ id, onBack }) {
             }
             return remoteVal;
           });
+          list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.order || 0) - (b.order || 0)));
+          return list;
         });
       });
     return () => { unsub1(); unsub2(); };
