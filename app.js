@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } = React;
 
 /* ============================== 유틸 ============================== */
 
@@ -387,6 +387,38 @@ function CreateRoom({ onDone, onCancel }) {
 
 /* ============================== 학생 행 (반, 이름, 담임...) ============================== */
 
+function ExpandingTextarea({ value, placeholder, onChange }) {
+  const ref = useRef(null);
+  const [hover, setHover] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const active = hover || focused;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (active) {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    } else {
+      el.style.height = "";
+    }
+  }, [active, value]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      placeholder={placeholder}
+      onChange={onChange}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    />
+  );
+}
+
 function StudentRow({ index, student, onChange, onDelete }) {
   return (
     <tr>
@@ -404,11 +436,11 @@ function StudentRow({ index, student, onChange, onDelete }) {
           onChange={(e) => onChange({ ...student, homeroom: e.target.value })} />
       </td>
       <td className="col-homeroom-cell col-wide expandable">
-        <textarea value={student.task || ""} placeholder="해야할 일" rows={1}
+        <ExpandingTextarea value={student.task || ""} placeholder="해야할 일"
           onChange={(e) => onChange({ ...student, task: e.target.value })} />
       </td>
       <td className="col-homeroom-cell col-medium expandable">
-        <textarea value={student.note || ""} placeholder="특이사항" rows={1}
+        <ExpandingTextarea value={student.note || ""} placeholder="특이사항"
           onChange={(e) => onChange({ ...student, note: e.target.value })} />
       </td>
       <td className="col-clinic-cell attend-cell">
@@ -416,7 +448,7 @@ function StudentRow({ index, student, onChange, onDelete }) {
           onChange={(e) => onChange({ ...student, attended: e.target.checked })} />
       </td>
       <td className="col-clinic-cell col-wide expandable">
-        <textarea value={student.result || ""} placeholder="클리닉 결과" rows={1}
+        <ExpandingTextarea value={student.result || ""} placeholder="클리닉 결과"
           onChange={(e) => onChange({ ...student, result: e.target.value })} />
       </td>
       <td className="row-del">

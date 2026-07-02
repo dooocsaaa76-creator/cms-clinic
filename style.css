@@ -521,18 +521,17 @@ table.roster input[type="text"]:focus, table.roster textarea:focus {
   border-color: var(--primary);
   background: var(--surface);
 }
-table.roster textarea { resize: vertical; min-height: 32px; font-family: inherit; }
+table.roster textarea { resize: none; font-family: inherit; }
 
-/* 해야할 일 / 특이사항 / 클리닉 결과: 한 줄이 넘으면 스크롤, 커서를 올리거나 편집 중엔 살짝 넓어짐 */
+/* 해야할 일 / 특이사항 / 클리닉 결과: 커서를 올리거나 편집 중이면 그 행의 높이가 늘어나 전체 내용이 보임 */
 table.roster td.expandable textarea {
-  max-height: 32px;
-  overflow-y: auto;
+  height: 32px;
+  overflow: hidden;
   white-space: pre-wrap;
-  transition: max-height 0.15s ease;
+  transition: height 0.12s ease;
 }
 table.roster td.expandable textarea:hover,
 table.roster td.expandable textarea:focus {
-  max-height: 140px;
   border-color: var(--primary);
   background: var(--surface);
 }
