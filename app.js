@@ -404,11 +404,11 @@ function StudentRow({ index, student, onChange, onDelete }) {
           onChange={(e) => onChange({ ...student, homeroom: e.target.value })} />
       </td>
       <td className="col-homeroom-cell col-wide expandable">
-        <textarea value={student.task || ""} placeholder="해야할 일" rows={1} title={student.task || ""}
+        <textarea value={student.task || ""} placeholder="해야할 일" rows={1}
           onChange={(e) => onChange({ ...student, task: e.target.value })} />
       </td>
       <td className="col-homeroom-cell col-medium expandable">
-        <textarea value={student.note || ""} placeholder="특이사항" rows={1} title={student.note || ""}
+        <textarea value={student.note || ""} placeholder="특이사항" rows={1}
           onChange={(e) => onChange({ ...student, note: e.target.value })} />
       </td>
       <td className="col-clinic-cell attend-cell">
@@ -416,7 +416,7 @@ function StudentRow({ index, student, onChange, onDelete }) {
           onChange={(e) => onChange({ ...student, attended: e.target.checked })} />
       </td>
       <td className="col-clinic-cell col-wide expandable">
-        <textarea value={student.result || ""} placeholder="클리닉 결과" rows={1} title={student.result || ""}
+        <textarea value={student.result || ""} placeholder="클리닉 결과" rows={1}
           onChange={(e) => onChange({ ...student, result: e.target.value })} />
       </td>
       <td className="row-del">
@@ -505,13 +505,13 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
         <table className="roster">
           <colgroup>
             <col style={{ width: "3%" }} />
+            <col style={{ width: "8.4%" }} />
             <col style={{ width: "7%" }} />
             <col style={{ width: "7%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "25%" }} />
-            <col style={{ width: "16%" }} />
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "12.8%" }} />
             <col style={{ width: "6%" }} />
-            <col style={{ width: "25%" }} />
+            <col style={{ width: "20%" }} />
             <col style={{ width: "4%" }} />
           </colgroup>
           <thead>
@@ -651,11 +651,10 @@ function CalendarGrid({ year, month, byDateMap, onSelectDate }) {
 
 /* ============================== 클리닉 방(월) 화면 ============================== */
 
-function Room({ id, onBack }) {
+function Room({ id, onBack, selectedDate, onSelectDate }) {
   const [monthDoc, setMonthDoc] = useState(null);
   const [sessions, setSessions] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
   const recentEditRef = useRef({});
 
   useEffect(() => {
@@ -706,7 +705,7 @@ function Room({ id, onBack }) {
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     setShowAdd(false);
-    setSelectedDate(date);
+    onSelectDate(date);
   }
 
   const byDate = useMemo(() => {
@@ -758,13 +757,13 @@ function Room({ id, onBack }) {
           year={monthDoc.year}
           month={monthDoc.month}
           byDateMap={byDateMap}
-          onSelectDate={(date) => setSelectedDate(date)}
+          onSelectDate={(date) => onSelectDate(date)}
         />
       )}
 
       {selectedDate !== null && (
         <div>
-          <button className="back-link" onClick={() => setSelectedDate(null)}>← 달력으로</button>
+          <button className="back-link" onClick={() => onSelectDate(null)}>← 달력으로</button>
           <div className="date-block">
             <div className="date-block-head">
               <span className={`date-tab day-${new Date(selectedDate + "T00:00:00").getDay()}`}>
@@ -792,7 +791,23 @@ function Room({ id, onBack }) {
 /* ============================== 앱 루트 ============================== */
 
 function App() {
-  const [view, setView] = useState({ name: "home" });
+  const [view, setView] = useState(() => window.history.state || { name: "home" });
+
+  useEffect(() => {
+    if (!window.history.state) {
+      window.history.replaceState({ name: "home" }, "");
+    }
+    function onPopState(e) {
+      setView(e.state || { name: "home" });
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  function navigate(next) {
+    setView(next);
+    window.history.pushState(next, "");
+  }
 
   return (
     <div className="app-shell">
@@ -806,18 +821,23 @@ function App() {
 
       {view.name === "home" && (
         <Home
-          onOpenMonth={(id) => setView({ name: "room", id })}
-          onCreate={() => setView({ name: "create" })}
+          onOpenMonth={(id) => navigate({ name: "room", id, date: null })}
+          onCreate={() => navigate({ name: "create" })}
         />
       )}
       {view.name === "create" && (
         <CreateRoom
-          onCancel={() => setView({ name: "home" })}
-          onDone={(id) => setView({ name: "room", id })}
+          onCancel={() => navigate({ name: "home" })}
+          onDone={(id) => navigate({ name: "room", id, date: null })}
         />
       )}
       {view.name === "room" && (
-        <Room id={view.id} onBack={() => setView({ name: "home" })} />
+        <Room
+          id={view.id}
+          onBack={() => navigate({ name: "home" })}
+          selectedDate={view.date || null}
+          onSelectDate={(date) => navigate({ name: "room", id: view.id, date })}
+        />
       )}
     </div>
   );
