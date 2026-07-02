@@ -762,7 +762,7 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
     return <div className="empty-state"><h3>이 클리닉 방을 찾을 수 없어요</h3><button className="btn" onClick={onBack}>목록으로</button></div>;
   }
 
-  const selectedSessions = selectedDate ? (byDateMap[selectedDate] || []) : [];
+  const selectedSessions = (selectedDate && selectedDate !== "ALL") ? (byDateMap[selectedDate] || []) : [];
 
   return (
     <div>
@@ -772,7 +772,12 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
           <h2>{monthDoc.year}년 {monthDoc.month}월 클리닉</h2>
           <div className="meta">총 {byDate.length}개 날짜 · {(sessions || []).length}개 반</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ 클리닉 날짜/반 추가</button>
+        <div className="field-row">
+          {selectedDate === null && byDate.length > 0 && (
+            <button className="btn" onClick={() => onSelectDate("ALL")}>전체 목록 보기</button>
+          )}
+          <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ 클리닉 날짜/반 추가</button>
+        </div>
       </div>
 
       <Legend />
@@ -793,7 +798,23 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
         />
       )}
 
-      {selectedDate !== null && (
+      {selectedDate === "ALL" && (
+        <div>
+          <button className="back-link" onClick={() => onSelectDate(null)}>← 달력으로</button>
+          {byDate.map(({ date, sessions: daySessions }) => (
+            <div className="date-block" key={date}>
+              <div className="date-block-head">
+                <span className={`date-tab day-${daySessions[0].dayOfWeek}`}>{formatDateLabel(date)}</span>
+              </div>
+              {daySessions.map((s) => (
+                <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selectedDate !== null && selectedDate !== "ALL" && (
         <div>
           <button className="back-link" onClick={() => onSelectDate(null)}>← 달력으로</button>
           <div className="date-block">
@@ -845,7 +866,7 @@ function App() {
     <div className="app-shell">
       <div className="app-header">
         <div className="brand">
-          <span className="brand-mark">CLINIC LEDGER</span>
+          <span className="brand-mark">CMS서초영재관</span>
           <h1>클리닉 명단 관리</h1>
         </div>
         <div className="sub">담임 입력 · 클리닉 담당 입력을 한 화면에서</div>
