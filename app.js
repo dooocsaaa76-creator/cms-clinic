@@ -672,7 +672,7 @@ function SessionTable({ session, onCommit, onDeleteSession, allSessions, onMoveS
         <MoveStudentModal
           student={movingStudent.student}
           currentSessionId={session.id}
-          sessions={allSessions || []}
+          sessions={(allSessions || []).filter((s) => s.date === session.date)}
           onClose={() => setMovingStudent(null)}
           onConfirm={confirmMove}
         />
@@ -700,11 +700,11 @@ function MoveStudentModal({ student, currentSessionId, sessions, onClose, onConf
           <option value="">이동할 반을 선택하세요</option>
           {options.map((s) => (
             <option key={s.id} value={s.id}>
-              {formatDateLabel(s.date)} · {s.grade || "반"} {s.time ? `· ${s.time}` : ""} {s.teacher ? `· ${s.teacher}` : ""}
+              {s.grade || "반"} {s.time ? `· ${s.time}` : ""} {s.teacher ? `· ${s.teacher}` : ""}
             </option>
           ))}
         </select>
-        {options.length === 0 && <div className="hint" style={{ marginTop: 6 }}>이동할 수 있는 다른 반이 없어요.</div>}
+        {options.length === 0 && <div className="hint" style={{ marginTop: 6 }}>같은 날짜에 이동할 수 있는 다른 반이 없어요.</div>}
       </div>
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>취소</button>
