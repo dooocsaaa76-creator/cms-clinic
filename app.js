@@ -494,7 +494,7 @@ function ExpandingTextarea({ value, placeholder, onChange }) {
   );
 }
 
-function StudentRow({ index, student, onChange, onDelete }) {
+function StudentRow({ index, student, onChange, onDelete, onRequestMove }) {
   return (
     <tr>
       <td className="rownum">{index + 1}</td>
@@ -527,6 +527,7 @@ function StudentRow({ index, student, onChange, onDelete }) {
           onChange={(e) => onChange({ ...student, result: e.target.value })} />
       </td>
       <td className="row-del">
+        <button type="button" className="move-btn" title="다른 반으로 이동" onClick={onRequestMove}>⇄</button>
         <button type="button" title="이 학생 삭제" onClick={onDelete}>✕</button>
       </td>
     </tr>
@@ -535,9 +536,10 @@ function StudentRow({ index, student, onChange, onDelete }) {
 
 /* ============================== 세션(반) 테이블 ============================== */
 
-function SessionTable({ session, onCommit, onDeleteSession }) {
+function SessionTable({ session, onCommit, onDeleteSession, allSessions, onMoveStudent }) {
   const [students, setStudents] = useState(session.students || []);
   const [header, setHeader] = useState({ grade: session.grade || "", time: session.time || "", teacher: session.teacher || "", room: session.room || "" });
+  const [movingStudent, setMovingStudent] = useState(null); // { index, student }
   const dirtyRef = useRef(false);
 
   useEffect(() => {
@@ -586,6 +588,16 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
     commitStudents(next);
   }
 
+  function confirmMove(toSessionId) {
+    if (!movingStudent) return;
+    const next = students.filter((_, idx) => idx !== movingStudent.index);
+    setStudents(next);
+    markDirty();
+    window.setTimeout(() => { dirtyRef.current = false; }, 1500);
+    onMoveStudent(session.id, movingStudent.student, toSessionId);
+    setMovingStudent(null);
+  }
+
   return (
     <div className="session-block">
       <div className="session-head">
@@ -620,10 +632,10 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
             <col style={{ width: "7%" }} />
             <col style={{ width: "7%" }} />
             <col style={{ width: "30%" }} />
-            <col style={{ width: "12.8%" }} />
+            <col style={{ width: "10.8%" }} />
             <col style={{ width: "6%" }} />
             <col style={{ width: "20%" }} />
-            <col style={{ width: "4%" }} />
+            <col style={{ width: "6%" }} />
           </colgroup>
           <thead>
             <tr>
@@ -646,6 +658,7 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
                 student={s}
                 onChange={(updated) => updateStudent(i, updated)}
                 onDelete={() => deleteStudent(i)}
+                onRequestMove={() => setMovingStudent({ index: i, student: s })}
               />
             ))}
           </tbody>
@@ -654,11 +667,52 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
       <div className="session-foot">
         <button className="btn btn-sm" type="button" onClick={addStudent}>+ 학생 추가</button>
       </div>
+
+      {movingStudent && (
+        <MoveStudentModal
+          student={movingStudent.student}
+          currentSessionId={session.id}
+          sessions={allSessions || []}
+          onClose={() => setMovingStudent(null)}
+          onConfirm={confirmMove}
+        />
+      )}
     </div>
   );
 }
 
-/* ============================== 날짜/반 추가 모달 ============================== */
+/* ============================== 학생 이동 모달 ============================== */
+
+function MoveStudentModal({ student, currentSessionId, sessions, onClose, onConfirm }) {
+  const options = useMemo(() => {
+    return sessions
+      .filter((s) => s.id !== currentSessionId)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.order || 0) - (b.order || 0)));
+  }, [sessions, currentSessionId]);
+  const [target, setTarget] = useState("");
+
+  return (
+    <Modal title={`${student.name || "학생"} 이동`} onClose={onClose}>
+      <div className="field">
+        <label>이동할 반 선택</label>
+        <select value={target} onChange={(e) => setTarget(e.target.value)}>
+          <option value="">이동할 반을 선택하세요</option>
+          {options.map((s) => (
+            <option key={s.id} value={s.id}>
+              {formatDateLabel(s.date)} · {s.grade || "반"} {s.time ? `· ${s.time}` : ""} {s.teacher ? `· ${s.teacher}` : ""}
+            </option>
+          ))}
+        </select>
+        {options.length === 0 && <div className="hint" style={{ marginTop: 6 }}>이동할 수 있는 다른 반이 없어요.</div>}
+      </div>
+      <div className="modal-actions">
+        <button className="btn" onClick={onClose}>취소</button>
+        <button className="btn btn-primary" disabled={!target} onClick={() => target && onConfirm(target)}>이동하기</button>
+      </div>
+    </Modal>
+  );
+}
 
 function AddSessionModal({ onClose, onAdd }) {
   const [date, setDate] = useState("");
@@ -812,6 +866,36 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
     await db.collection("clinicMonths").doc(id).collection("sessions").doc(sessionId).delete();
   }
 
+  const handleMoveStudent = useCallback((fromSessionId, student, toSessionId) => {
+    recentEditRef.current[fromSessionId] = Date.now();
+    recentEditRef.current[toSessionId] = Date.now();
+
+    // 화면은 바로 반영(낙관적 업데이트)
+    setSessions((prev) => (prev || []).map((s) => {
+      if (s.id === fromSessionId) {
+        return { ...s, students: (s.students || []).filter((st) => st.id !== student.id) };
+      }
+      if (s.id === toSessionId) {
+        return { ...s, students: [...(s.students || []), student] };
+      }
+      return s;
+    }));
+
+    const fromRef = db.collection("clinicMonths").doc(id).collection("sessions").doc(fromSessionId);
+    const toRef = db.collection("clinicMonths").doc(id).collection("sessions").doc(toSessionId);
+    db.runTransaction(async (tx) => {
+      const fromSnap = await tx.get(fromRef);
+      const toSnap = await tx.get(toRef);
+      const fromStudents = ((fromSnap.data() || {}).students || []).filter((st) => st.id !== student.id);
+      const toStudents = [...((toSnap.data() || {}).students || []), student];
+      tx.update(fromRef, { students: fromStudents, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      tx.update(toRef, { students: toStudents, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }).catch((err) => {
+      console.error("이동 실패", err);
+      window.alert("학생 이동 중 문제가 생겼어요. 새로고침 후 다시 시도해주세요.");
+    });
+  }, [id]);
+
   async function handleAddSession({ date, grade, time, room, teacher }) {
     const dow = new Date(date + "T00:00:00").getDay();
     await db.collection("clinicMonths").doc(id).collection("sessions").add({
@@ -892,7 +976,7 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
                 <button className="btn btn-sm add-here" type="button" onClick={() => downloadDayPdf(date, daySessions)}>PDF 다운로드</button>
               </div>
               {daySessions.map((s) => (
-                <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} />
+                <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} allSessions={sessions} onMoveStudent={handleMoveStudent} />
               ))}
             </div>
           ))}
@@ -918,7 +1002,7 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
               </div>
             )}
             {selectedSessions.map((s) => (
-              <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} />
+              <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} allSessions={sessions} onMoveStudent={handleMoveStudent} />
             ))}
           </div>
         </div>
