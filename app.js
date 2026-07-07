@@ -76,10 +76,16 @@ function buildDayPdfHtml(date, daySessions) {
 
 function downloadDayPdf(date, daySessions) {
   if (!daySessions || daySessions.length === 0) return;
+
+  // 화면 밖(-9999px)에 두면 캡처 라이브러리가 빈 화면으로 찍는 경우가 있어서,
+  // 실제 문서 흐름 안에 정상적으로 그린 뒤 전체화면 오버레이로 잠깐 가리는 방식을 씁니다.
+  const overlay = document.createElement("div");
+  overlay.style.cssText =
+    "position:fixed;inset:0;z-index:99999;background:#f5f3ec;display:flex;align-items:center;justify-content:center;font-family:sans-serif;font-size:14px;color:#555;";
+  overlay.textContent = "PDF 만드는 중…";
+  document.body.appendChild(overlay);
+
   const wrapper = document.createElement("div");
-  wrapper.style.position = "fixed";
-  wrapper.style.left = "-9999px";
-  wrapper.style.top = "0";
   wrapper.style.width = "1050px";
   wrapper.innerHTML = buildDayPdfHtml(date, daySessions);
   document.body.appendChild(wrapper);
@@ -90,8 +96,12 @@ function downloadDayPdf(date, daySessions) {
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
     jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
-  }).from(wrapper).save().finally(() => {
+  }).from(wrapper).save().catch((err) => {
+    console.error("PDF 생성 실패", err);
+    window.alert("PDF를 만드는 중 문제가 생겼어요. 다시 시도해주세요.");
+  }).finally(() => {
     document.body.removeChild(wrapper);
+    document.body.removeChild(overlay);
   });
 }
 
