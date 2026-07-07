@@ -368,7 +368,7 @@ input[type="number"] { width: 90px; }
 
 .group-row {
   display: grid;
-  grid-template-columns: 24px 1.1fr 1fr 1fr 32px;
+  grid-template-columns: 24px 1.1fr 0.9fr 0.9fr 0.9fr 32px;
   gap: 8px;
   align-items: center;
   padding: 8px 14px;
@@ -462,6 +462,7 @@ input[type="number"] { width: 90px; }
 .session-head .grade-input { width: 110px; }
 .session-head .time-input { width: 120px; }
 .session-head .teacher-input { width: 100px; }
+.session-head .room-input { width: 100px; }
 
 .session-head .teacher-wrap {
   margin-left: auto;
@@ -699,3 +700,37 @@ table.roster td.expandable textarea:focus {
     background: var(--primary);
   }
 }
+
+/* ---------------- PDF 출력용 시트 (화면에는 보이지 않고, PDF 변환에만 사용) ---------------- */
+
+.pdf-sheet {
+  font-family: var(--font-body);
+  background: #ffffff;
+  color: #1a1a1a;
+  padding: 24px;
+  width: 1050px;
+}
+.pdf-sheet h1 {
+  text-align: center;
+  font-size: 30px;
+  font-weight: 800;
+  border-bottom: 3px solid #1a1a1a;
+  padding-bottom: 16px;
+  margin: 4px 0 22px;
+  letter-spacing: 0.02em;
+}
+.pdf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 17px;
+}
+.pdf-table th, .pdf-table td {
+  border: 2px solid #1a1a1a;
+  padding: 16px 12px;
+  text-align: center;
+  vertical-align: middle;
+}
+.pdf-table th { font-weight: 800; background: #ffffff; }
+.pdf-day-cell { font-weight: 800; font-size: 22px; }
+.pdf-grade-cell { background: var(--homeroom-bg-strong); font-weight: 700; }
+.pdf-list-cell { text-align: left; padding-left: 18px; line-height: 1.7; }

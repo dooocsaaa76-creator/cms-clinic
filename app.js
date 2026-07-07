@@ -38,6 +38,63 @@ function monthId(year, month) {
   return `${year}-${pad2(month)}`;
 }
 
+function escapeHtml(str) {
+  return String(str == null ? "" : str).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+
+function buildDayPdfHtml(date, daySessions) {
+  const dow = new Date(date + "T00:00:00").getDay();
+  const wd = WEEKDAY_NAMES[dow];
+  const [, m, d] = date.split("-").map(Number);
+  const rows = daySessions.map((s, i) => {
+    const names = (s.students || []).map((st) => st.name).filter(Boolean).join(", ") || "-";
+    const count = (s.students || []).length;
+    return `
+      <tr>
+        ${i === 0 ? `<td class="pdf-day-cell" rowspan="${daySessions.length}">${wd}</td>` : ""}
+        <td class="pdf-grade-cell">${escapeHtml(s.grade) || "-"}</td>
+        <td>${escapeHtml(s.time) || "-"}</td>
+        <td>${escapeHtml(s.room) || "-"}</td>
+        <td>${count}</td>
+        <td class="pdf-list-cell">${escapeHtml(names)}</td>
+      </tr>`;
+  }).join("");
+
+  return `
+    <div class="pdf-sheet">
+      <h1>${wd}요클리닉 (${m}/${d})</h1>
+      <table class="pdf-table">
+        <thead>
+          <tr><th>요일</th><th>과정</th><th>시간</th><th>강의실</th><th>인원</th><th>명단</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function downloadDayPdf(date, daySessions) {
+  if (!daySessions || daySessions.length === 0) return;
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "fixed";
+  wrapper.style.left = "-9999px";
+  wrapper.style.top = "0";
+  wrapper.style.width = "1050px";
+  wrapper.innerHTML = buildDayPdfHtml(date, daySessions);
+  document.body.appendChild(wrapper);
+
+  window.html2pdf().set({
+    margin: 10,
+    filename: `클리닉명단_${date.replace(/-/g, "")}.pdf`,
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: "mm", format: "a4", orientation: "landscape" },
+  }).from(wrapper).save().finally(() => {
+    document.body.removeChild(wrapper);
+  });
+}
+
 /* ============================== 작은 UI 조각들 ============================== */
 
 function Modal({ title, children, onClose }) {
@@ -139,9 +196,9 @@ function CreateRoom({ onDone, onCancel }) {
   const [month, setMonth] = useState(nextMonthDate.getMonth() + 1);
   const [selectedDays, setSelectedDays] = useState({ 0: true, 3: true, 6: true }); // 일/수/토 기본
   const [groupsByDay, setGroupsByDay] = useState({
-    0: [{ id: uid(), grade: "", time: "", teacher: "" }],
-    3: [{ id: uid(), grade: "", time: "", teacher: "" }],
-    6: [{ id: uid(), grade: "", time: "", teacher: "" }],
+    0: [{ id: uid(), grade: "", time: "", teacher: "", room: "" }],
+    3: [{ id: uid(), grade: "", time: "", teacher: "", room: "" }],
+    6: [{ id: uid(), grade: "", time: "", teacher: "", room: "" }],
   });
   const [existingMonths, setExistingMonths] = useState([]);
   const [templateId, setTemplateId] = useState("");
@@ -165,7 +222,7 @@ function CreateRoom({ onDone, onCancel }) {
     });
     setGroupsByDay((prev) => {
       if (prev[d]) return prev;
-      return { ...prev, [d]: [{ id: uid(), grade: "", time: "", teacher: "" }] };
+      return { ...prev, [d]: [{ id: uid(), grade: "", time: "", teacher: "", room: "" }] };
     });
   }
 
@@ -179,7 +236,7 @@ function CreateRoom({ onDone, onCancel }) {
   function addGroup(day) {
     setGroupsByDay((prev) => ({
       ...prev,
-      [day]: [...(prev[day] || []), { id: uid(), grade: "", time: "", teacher: "" }],
+      [day]: [...(prev[day] || []), { id: uid(), grade: "", time: "", teacher: "", room: "" }],
     }));
   }
 
@@ -199,7 +256,7 @@ function CreateRoom({ onDone, onCancel }) {
     (src.weekdayGroups || []).forEach((g) => {
       daysOn[g.dayOfWeek] = true;
       if (!byDay[g.dayOfWeek]) byDay[g.dayOfWeek] = [];
-      byDay[g.dayOfWeek].push({ id: uid(), grade: g.grade || "", time: g.time || "", teacher: g.teacher || "" });
+      byDay[g.dayOfWeek].push({ id: uid(), grade: g.grade || "", time: g.time || "", teacher: g.teacher || "", room: g.room || "" });
     });
     setSelectedDays((prev) => {
       const next = { 0: false, 1: false, 2: false, 3: false, 4: false, 5: false, 6: false };
@@ -237,6 +294,7 @@ function CreateRoom({ onDone, onCancel }) {
             grade: g.grade,
             time: g.time,
             teacher: g.teacher,
+            room: g.room,
             order: idx,
           });
         });
@@ -264,6 +322,7 @@ function CreateRoom({ onDone, onCancel }) {
               grade: g.grade || "",
               time: g.time || "",
               teacher: g.teacher || "",
+              room: g.room || "",
               order: idx,
               students: [],
               updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -355,6 +414,12 @@ function CreateRoom({ onDone, onCancel }) {
                     placeholder="클리닉 시간 (예: 20:00~22:00)"
                     value={g.time}
                     onChange={(e) => updateGroup(day, g.id, "time", e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    placeholder="강의실"
+                    value={g.room}
+                    onChange={(e) => updateGroup(day, g.id, "room", e.target.value)}
                   />
                   <input
                     type="text"
@@ -462,14 +527,14 @@ function StudentRow({ index, student, onChange, onDelete }) {
 
 function SessionTable({ session, onCommit, onDeleteSession }) {
   const [students, setStudents] = useState(session.students || []);
-  const [header, setHeader] = useState({ grade: session.grade || "", time: session.time || "", teacher: session.teacher || "" });
+  const [header, setHeader] = useState({ grade: session.grade || "", time: session.time || "", teacher: session.teacher || "", room: session.room || "" });
   const dirtyRef = useRef(false);
 
   useEffect(() => {
     if (dirtyRef.current) return;
     setStudents(session.students || []);
-    setHeader({ grade: session.grade || "", time: session.time || "", teacher: session.teacher || "" });
-  }, [session.students, session.grade, session.time, session.teacher]);
+    setHeader({ grade: session.grade || "", time: session.time || "", teacher: session.teacher || "", room: session.room || "" });
+  }, [session.students, session.grade, session.time, session.teacher, session.room]);
 
   function markDirty() {
     dirtyRef.current = true;
@@ -527,6 +592,10 @@ function SessionTable({ session, onCommit, onDeleteSession }) {
           onBlur={() => commitHeader(header)}
           onChange={(e) => setHeader((h) => ({ ...h, time: e.target.value }))}
           placeholder="클리닉 시간" />
+        <input className="room-input" type="text" value={header.room}
+          onBlur={() => commitHeader(header)}
+          onChange={(e) => setHeader((h) => ({ ...h, room: e.target.value }))}
+          placeholder="강의실" />
         <div className="teacher-wrap">
           <span>{students.length}명</span>
           <button className="btn btn-sm btn-danger-text" type="button" onClick={() => onDeleteSession(session.id)}>이 반 삭제</button>
@@ -585,6 +654,7 @@ function AddSessionModal({ onClose, onAdd }) {
   const [date, setDate] = useState("");
   const [grade, setGrade] = useState("");
   const [time, setTime] = useState("");
+  const [room, setRoom] = useState("");
   const [teacher, setTeacher] = useState("");
 
   return (
@@ -602,6 +672,10 @@ function AddSessionModal({ onClose, onAdd }) {
         <input type="text" value={time} onChange={(e) => setTime(e.target.value)} placeholder="예: 19:00~21:00" />
       </div>
       <div className="field">
+        <label>강의실</label>
+        <input type="text" value={room} onChange={(e) => setRoom(e.target.value)} placeholder="예: 1관 5강의실" />
+      </div>
+      <div className="field">
         <label>담당자</label>
         <input type="text" value={teacher} onChange={(e) => setTeacher(e.target.value)} placeholder="담당 선생님" />
       </div>
@@ -610,7 +684,7 @@ function AddSessionModal({ onClose, onAdd }) {
         <button
           className="btn btn-primary"
           disabled={!date}
-          onClick={() => date && onAdd({ date, grade, time, teacher })}
+          onClick={() => date && onAdd({ date, grade, time, room, teacher })}
         >
           추가하기
         </button>
@@ -728,10 +802,10 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
     await db.collection("clinicMonths").doc(id).collection("sessions").doc(sessionId).delete();
   }
 
-  async function handleAddSession({ date, grade, time, teacher }) {
+  async function handleAddSession({ date, grade, time, room, teacher }) {
     const dow = new Date(date + "T00:00:00").getDay();
     await db.collection("clinicMonths").doc(id).collection("sessions").add({
-      date, dayOfWeek: dow, groupId: null, grade, time, teacher,
+      date, dayOfWeek: dow, groupId: null, grade, time, room, teacher,
       order: 999 + (Date.now() % 1000),
       students: [],
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -805,6 +879,7 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
             <div className="date-block" key={date}>
               <div className="date-block-head">
                 <span className={`date-tab day-${daySessions[0].dayOfWeek}`}>{formatDateLabel(date)}</span>
+                <button className="btn btn-sm add-here" type="button" onClick={() => downloadDayPdf(date, daySessions)}>PDF 다운로드</button>
               </div>
               {daySessions.map((s) => (
                 <SessionTable key={s.id} session={s} onCommit={handleCommit} onDeleteSession={handleDeleteSession} />
@@ -822,6 +897,9 @@ function Room({ id, onBack, selectedDate, onSelectDate }) {
               <span className={`date-tab day-${new Date(selectedDate + "T00:00:00").getDay()}`}>
                 {formatDateLabel(selectedDate)}
               </span>
+              {selectedSessions.length > 0 && (
+                <button className="btn btn-sm add-here" type="button" onClick={() => downloadDayPdf(selectedDate, selectedSessions)}>PDF 다운로드</button>
+              )}
             </div>
             {selectedSessions.length === 0 && (
               <div className="empty-state">
